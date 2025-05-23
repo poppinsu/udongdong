@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>내손수 챗봇 데모</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body { background: #f9fafb; font-family: 'Pretendard', 'Arial', sans-serif; margin: 0; }
+    .chatbox { max-width: 400px; margin: 40px auto; background: #fff; border-radius: 18px; box-shadow: 0 2px 12px #eee; overflow: hidden; }
+    .chatlog { padding: 24px 16px 0 16px; min-height: 380px; }
+    .msg { display: flex; margin-bottom: 18px; }
+    .msg.bot { justify-content: flex-start; }
+    .msg.user { justify-content: flex-end; }
+    .msg .bubble { max-width: 72%; padding: 10px 15px; border-radius: 16px; font-size: 1rem; line-height: 1.5; }
+    .msg.bot .bubble { background: #f1f5f9; color: #1e293b; border-bottom-left-radius: 4px; }
+    .msg.user .bubble { background: #5db87e; color: #fff; border-bottom-right-radius: 4px; }
+    .chat-input { border-top: 1px solid #f1f1f1; background: #f6f7fa; display: flex; padding: 10px 10px; }
+    .chat-input input { flex: 1; border: none; background: transparent; padding: 8px; font-size: 1rem; outline: none; }
+    .chat-input button { background: #5db87e; color: #fff; border: none; border-radius: 8px; padding: 0 18px; font-size: 1rem; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="chatbox">
+    <div class="chatlog" id="chatlog"></div>
+    <form class="chat-input" id="chatform" autocomplete="off">
+      <input type="text" id="userinput" placeholder="메시지를 입력하세요..." autocomplete="off" />
+      <button type="submit">전송</button>
+    </form>
+  </div>
+  <script>
+    // 하드코딩된 대화 플로우 (간단한 상태 머신)
+    const userName = "OO"; // 원하는 이름으로 수정 가능
+    const pets = ["코코", "보리", "별이"];
+
+    // 각 상태에서 가능한 입력과 다음 답변(및 상태)
+    const dialog = [
+      {
+        state: "start",
+        bot: "안녕하세요, 내 손 안의 수의사 서비스 [내손수] 챗봇입니다! 상담 받고 싶은 반려동물의 종을 알려주세요",
+        userMatch: [
+          { expect: "로그인", next: "login" }
+        ]
+      },
+      {
+        state: "login",
+        bot: `우동동 아이디로 로그인 되었습니다. ${userName}님 반갑습니다! 우동동에 등록해두신 반려동물 중 상담받고 싶은 동물을 알려주세요. 현재 우동동에 등록되어 있는 ${userName}님의 반려동물은 [${pets.join("/")}] 입니다.`,
+        userMatch: pets.map(pet => ({ expect: pet, next: "choosePet" }))
+      },
+      {
+        state: "choosePet",
+        bot: "코코에 대해 상담받고 싶은 사항을 알려주세요.",
+        userMatch: [
+          { expect: "코코가 자꾸 콧물을 흘려요", next: "runnyNose" }
+        ]
+      },
+      {
+        state: "runnyNose",
+        bot: "코코의 증상에 대해 더 자세히 설명해 주세요. 콧물 색, 점도, 다른 증상의 유무 등을 알려주세요.",
+        userMatch: [
+          { expect: "맑은 콧물이 자꾸 나와요", next: "clearNose" }
+        ]
+      },
+      {
+        state: "clearNose",
+        bot: `${userName}님의 우동동 반려동물 기록 조회 결과 코코는 2024년 5월 17일 [세브란스 동물병원 신촌점]에서 알레르기 반응을 진단받은 기록이 있습니다. 이번에도 알레르기 반응일 가능성이 높습니다. 특히 맑고 투명한 콧물이라면 더욱 그렇습니다. 혹시 최근 환경 변화나 새로운 음식에 노출된 적이 있는지 확인해 보시고, 증상이 지속되거나 악화된다면 병원에 방문하여 정확한 진단을 받아보시는 것이 좋습니다.`,
+        userMatch: [
+          { expect: "의사 선생님과 상담하고 싶어요", next: "doctor" }
+        ]
+      },
+      {
+        state: "doctor",
+        bot: "의사 선생님을 매칭 중이에요. 잠시만 기다려 주세요.. (예상시간 2분)",
+        userMatch: []
+      }
+    ];
+
+    // 현재 챗봇 대화 위치 상태
+    let currentState = 0;
+
+    function addMsg(sender, text) {
+      const chatlog = document.getElementById("chatlog");
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "msg " + sender;
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.innerText = text;
+      msgDiv.appendChild(bubble);
+      chatlog.appendChild(msgDiv);
+      chatlog.scrollTop = chatlog.scrollHeight;
+    }
+
+    // 챗봇 시작 시 첫 메시지 출력
+    window.onload = function() {
+      addMsg("bot", dialog[0].bot);
+    };
+
+    document.getElementById("chatform").onsubmit = function(e) {
+      e.preventDefault();
+      const input = document.getElementById("userinput");
+      const userMsg = input.value.trim();
+      if (!userMsg) return;
+
+      addMsg("user", userMsg);
+
+      // 현재 state에서 입력 가능한 userMatch 찾기
+      const matches = dialog[currentState].userMatch || [];
+      const found = matches.find(m => m.expect === userMsg);
+
+      if (found) {
+        // 다음 상태로 이동 및 답변 출력
+        currentState = dialog.findIndex(d => d.state === found.next);
+        setTimeout(() => addMsg("bot", dialog[currentState].bot), 400);
+      } else {
+        // 매칭 안 되는 입력
+        setTimeout(() => addMsg("bot", "잘 이해하지 못했어요."), 400);
+      }
+
+      input.value = "";
+    };
+  </script>
+</body>
+</html>
